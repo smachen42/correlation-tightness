@@ -53,6 +53,16 @@ details[open] {
   > :last-child { margin-bottom: 0; }
 }
 
+// Wide display equations (block matrices, the Schur complement) can exceed a
+// phone's width. Scroll them horizontally inside their own line rather than
+// overflowing the page. padding-bottom leaves room for the scrollbar without
+// clipping the equation; overflow-y stays hidden so only horizontal scrolls.
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+
 // Display equations inside proofs default to generous vertical margins; tighten
 // them so a proof with two or three equations stays compact.
 details .katex-display {

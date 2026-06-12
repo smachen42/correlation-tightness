@@ -8,6 +8,7 @@
 
 {% block extra_head %}
 {{ super() }}
+<link rel="stylesheet" href="{{ get_url(path='theory.css') | safe }}">
 <link rel="stylesheet" href="{{ get_url(path='katex/katex.min.css') | safe }}">
 <script defer src="{{ get_url(path='katex/katex.min.js') | safe }}"></script>
 <script defer src="{{ get_url(path='katex/contrib/auto-render.min.js') | safe }}"></script>

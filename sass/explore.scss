@@ -55,6 +55,13 @@ button:disabled:hover {
 }
 .result-block h3 { margin: 0 0 0.5rem; font-size: 1rem; }
 
+// Keep the matrix on-screen on narrow viewports: let the flex item shrink
+// below its content width (min-width:0 releases the flexbox min-width:auto
+// trap) and scroll the table horizontally inside the block rather than
+// overflowing the page. Small matrices fit and stay centered as before.
+.result-block { min-width: 0; max-width: 100%; }
+.table-scroll { overflow-x: auto; }
+
 // Override the theme's chunkier td defaults for compact matrix display.
 // Cell font-size also drives the slider/curve axis labels — `computeSliderFontSize`
 // in explore.js reads this and scales SVG text in proportion.
