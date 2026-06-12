@@ -15,6 +15,8 @@ theme = "lightspeed"
 theme = "catppuccin-mocha"
 
 [extra]
+# Footer is rendered by the taglines block override in templates/index.html
+# (Source link + name), so the theme's footer_links/credits are unused.
 footer_credits = false
 footer_links = []
 ogimage = "og-image.png"   # 1200x630 link-preview card (overrides theme default)

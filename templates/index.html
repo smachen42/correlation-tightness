@@ -63,6 +63,15 @@
   .landing-card span { font-size: 0.9rem; color: #555; }
   .landing-card:hover { background: #2d2d2d; color: #fffaf7; }
   .landing-card:hover span { color: #fffaf7; }
+  /* Footer credit row: tool/source credit left, name right (muted, no link). */
+  .site-footer-credit {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.2rem 1rem;
+  }
+  .site-footer-credit .footer-by { color: #999; font-size: 0.8rem; }
 </style>
 {% endblock extra_head %}
 
@@ -82,3 +91,12 @@
 {% block content %}
   {{ section.content | safe }}
 {% endblock content %}
+
+{# One-line footer: tool/source credit on the left, name right-aligned and muted
+   (no link). Replaces the theme's stacked credit; footer_links is left empty. #}
+{% block taglines %}
+<div class="site-footer-credit">
+  <small><a href="https://github.com/smachen42/correlation-tightness">Source</a></small>
+  <small class="footer-by">Samuel Machen</small>
+</div>
+{% endblock taglines %}
