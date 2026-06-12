@@ -1,0 +1,60 @@
+// Proof blocks on the theory page.
+//
+// Each result in the narrative is followed by a <details><summary>Proof</summary>
+// block. The goal is for these to *recede*: collapsed, a proof is a single quiet
+// toggle line; expanded, it reads as an indented aside (continuous left rule,
+// muted, tighter spacing) that the eye can skip without losing the main argument.
+
+details {
+  // Sit tight against the result it follows, with a little more room before the
+  // next paragraph/heading so the block reads as belonging to what precedes it.
+  margin: 0.35rem 0 1rem;
+}
+
+details > summary {
+  display: inline-block;          // shrink the hit/visual area to the label
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: darkred;
+  user-select: none;
+  list-style: none;               // drop the default disclosure triangle (Firefox)
+
+  &::-webkit-details-marker { display: none; }   // …and WebKit/Blink
+
+  // Custom caret so the toggle reads as a lightweight affordance, not a heading.
+  &::before {
+    content: "\25B8";             // ▸
+    display: inline-block;
+    width: 1em;
+    font-style: normal;
+    font-size: 0.85em;
+  }
+  &:hover { text-decoration: underline; }
+}
+
+// Expanded: the whole block becomes an indented aside. The rule lives on the
+// container (not each paragraph) so it stays continuous across multi-paragraph
+// proofs; the body is indented past it while the summary label is pulled back
+// flush with the main column.
+details[open] {
+  border-left: 2px solid #e0d8d2;
+  padding-left: 1rem;
+  color: #555;
+  font-size: 0.95rem;
+
+  > summary {
+    margin: 0 0 0.4rem -1rem;     // cancel padding so the label sits flush-left
+    &::before { content: "\25BE"; }   // ▾
+  }
+
+  // Trim stray vertical space at the ends of the aside.
+  > :not(summary):first-of-type { margin-top: 0; }
+  > :last-child { margin-bottom: 0; }
+}
+
+// Display equations inside proofs default to generous vertical margins; tighten
+// them so a proof with two or three equations stays compact.
+details .katex-display {
+  margin: 0.5rem 0;
+}

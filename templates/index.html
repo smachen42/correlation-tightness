@@ -1,0 +1,75 @@
+{% extends "lightspeed/templates/index.html" %}
+
+{% block extra_head %}
+{{ super() }}
+<link rel="icon" type="image/svg+xml" href="{{ get_url(path='favicon.svg') | safe }}">
+<style>
+  main#main { max-width: 56rem; }
+  .header-row {
+    display: flex;
+    align-items: last baseline;
+    justify-content: space-between;
+    gap: 0.5rem 1.5rem;
+    flex-wrap: wrap;
+  }
+  .header-row h3 { min-width: 0; }
+  .header-link {
+    font-size: 0.9rem;
+    color: #666;
+    text-decoration: none;
+    border-bottom: 1px solid #bbb;
+    white-space: nowrap;
+  }
+  .header-link:hover { color: #2d2d2d; border-bottom-color: #2d2d2d; }
+  details {
+    margin: 1.2rem 0;
+    padding: 0.4rem 0.9rem;
+    border-left: 3px solid #ccc;
+  }
+  details > summary {
+    cursor: pointer;
+    font-weight: 500;
+    color: #555;
+    user-select: none;
+  }
+  details[open] > summary { margin-bottom: 0.6rem; }
+  .landing-links {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 0.6rem 0 0;
+  }
+  @media (max-width: 32rem) { .landing-links { grid-template-columns: 1fr; } }
+  .landing-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid #2d2d2d;
+    color: #2d2d2d;
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+  }
+  .landing-card strong { font-size: 1.05rem; }
+  .landing-card span { font-size: 0.9rem; color: #555; }
+  .landing-card:hover { background: #2d2d2d; color: #fffaf7; }
+  .landing-card:hover span { color: #fffaf7; }
+</style>
+{% endblock extra_head %}
+
+{% block header %}
+<header role="banner">
+  <div class="header-row">
+    <h3 style="margin:0;">
+      <a href="{{ config.base_url | safe }}" title="Home">{{ config.title }}</a>
+      <br /><small>{{ config.description }}</small>
+    </h3>
+    {% block header_aside %}{% endblock header_aside %}
+  </div>
+</header>
+<hr />
+{% endblock header %}
+
+{% block content %}
+  {{ section.content | safe }}
+{% endblock content %}

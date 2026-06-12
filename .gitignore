@@ -1,0 +1,11 @@
+# Zola build output (Cloudflare regenerates this on every deploy)
+/public
+
+# Claude Code working files
+CLAUDE.md
+.claude/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp

@@ -1,0 +1,61 @@
+{% extends "index.html" %}
+
+{% block title %}{{ page.title }} &middot; {{ config.title }}{% endblock title %}
+
+{% block header_aside %}
+<a class="header-link" href="{{ get_url(path='@/theory.md', trailing_slash=true) | safe }}">Read the theory</a>
+{% endblock header_aside %}
+
+{% block extra_head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ get_url(path='explore.css') | safe }}">
+<script defer src="{{ get_url(path='js/linalg.js') | safe }}"></script>
+<script defer src="{{ get_url(path='js/explore.js') | safe }}"></script>
+{% endblock extra_head %}
+
+{% block content %}
+<article>
+  <section class="intro">
+    {{ page.content | safe }}
+  </section>
+
+  <div id="results" hidden>
+    <div class="matrix-toolbar">
+      <form id="gen-form" class="toolbar-group">
+        <label for="n-input">n =</label>
+        <input id="n-input" type="number" min="2" max="20" value="7">
+        <button type="submit" title="Random correlation matrix drawn from a Wishart distribution with identity scale">Generate</button>
+      </form>
+      <div class="toolbar-group">
+        <button id="upload-btn" type="button">&#8593; Upload CSV</button>
+        <input type="file" id="csv-file" accept=".csv,.txt" hidden>
+      </div>
+      <div class="toolbar-group">
+        <button id="reset-btn" type="button" disabled title="Restore last-generated matrix">&#8634; Reset</button>
+        <button id="download-btn" type="button" disabled>&#8595; Download CSV</button>
+      </div>
+    </div>
+    <div id="error"></div>
+
+    <div class="result-row">
+      <div class="result-block">
+        <table id="corr-table"></table>
+        <p class="caption">The bar beneath each cell marks that entry's feasible range.</p>
+      </div>
+    </div>
+
+    <div id="nl-panel">
+      <div class="nl-info-row">
+        <div id="nl-info"></div>
+        <div id="mode-toggle" class="mode-toggle" role="group" aria-label="Slider axis" hidden>
+          <button class="mode-btn active" data-mode="raw"     title="raw correlation">Correlation</button>
+          <button class="mode-btn"        data-mode="partial" title="partial correlation">Partial correlation</button>
+        </div>
+      </div>
+      <div id="nl-svg"></div>
+      <div id="nl-curve" style="margin-top:0.6rem"></div>
+      <p class="caption">λ_min is the smallest eigenvalue; the matrix stays valid while it is ≥ 0. Drag past the zero crossing and the matrix turns red.</p>
+    </div>
+  </div>
+</article>
+{% endblock content %}

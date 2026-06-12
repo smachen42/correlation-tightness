@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="3x3 correlation matrix">
+  <!-- Symmetric correlation matrix: light-gray diagonal, very light-gray off-diagonal. -->
+  <rect width="32" height="32" fill="#fffaf7"/>
+  <!-- cell fills, flush (no gaps) -->
+  <g>
+    <rect x="2"      y="2"      width="9.333" height="9.333" fill="#8c8c8c"/>
+    <rect x="11.333" y="2"      width="9.333" height="9.333" fill="#ffffff"/>
+    <rect x="20.667" y="2"      width="9.333" height="9.333" fill="#ffffff"/>
+    <rect x="2"      y="11.333" width="9.333" height="9.333" fill="#ffffff"/>
+    <rect x="11.333" y="11.333" width="9.333" height="9.333" fill="#8c8c8c"/>
+    <rect x="20.667" y="11.333" width="9.333" height="9.333" fill="#ffffff"/>
+    <rect x="2"      y="20.667" width="9.333" height="9.333" fill="#ffffff"/>
+    <rect x="11.333" y="20.667" width="9.333" height="9.333" fill="#ffffff"/>
+    <rect x="20.667" y="20.667" width="9.333" height="9.333" fill="#8c8c8c"/>
+  </g>
+  <!-- single shared grid -->
+  <g stroke="#2d2d2d" stroke-width="3" fill="none">
+    <rect x="2" y="2" width="28" height="28"/>
+    <line x1="11.333" y1="2" x2="11.333" y2="30"/>
+    <line x1="20.667" y1="2" x2="20.667" y2="30"/>
+    <line x1="2" y1="11.333" x2="30" y2="11.333"/>
+    <line x1="2" y1="20.667" x2="30" y2="20.667"/>
+  </g>
+</svg>

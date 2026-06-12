@@ -1,0 +1,18 @@
+base_url = "https://correlation-tightness.com"
+
+title = "Correlation Tightness"
+description = "How constrained is each correlation given the rest of the matrix?"
+
+compile_sass = true
+build_search_index = false
+
+theme = "lightspeed"
+
+[markdown]
+
+[markdown.highlighting]
+theme = "catppuccin-mocha"
+
+[extra]
+footer_credits = false
+footer_links = []

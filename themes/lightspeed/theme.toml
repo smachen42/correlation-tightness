@@ -1,0 +1,26 @@
+name = "lightspeed"
+description = "Zola theme with a perfect Lighthouse score"
+license = "MIT"
+homepage = "https://github.com/carpetscheme/lightspeed"
+min_version = "0.20.0"
+demo = "https://carpetscheme.github.io/lightspeed"
+
+[author]
+name = "carpetscheme"
+homepage = "https://github.com/carpetscheme"
+
+[original]
+author = "Bradley Taunt"
+homepage = "https://github.com/bradleytaunt"
+repo = "https://github.com/bradleytaunt/lightspeed"
+
+[extra]
+
+ogimage = "lightning.png"
+
+footer_links = [
+    {url = "$BASE_URL/about", name = "About"},
+    {url = "$BASE_URL/atom.xml", name = "RSS"}
+]
+
+footer_credits = true # Whether to show "Built with Zola and Lightspeed" in footer

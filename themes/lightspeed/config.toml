@@ -1,0 +1,24 @@
+base_url = "https://carpetscheme.github.io/lightspeed"
+title = "Light Speed"
+description = "Zola theme with a perfect Lighthouse score"
+author = "carpetscheme"
+
+compile_sass = true
+generate_feeds = true
+
+[markdown]
+
+highlight_code = true
+highlight_theme = "gruvbox-light"
+
+[extra]
+
+ogimage = "lightning.png"
+
+footer_links = [
+    {url = "$BASE_URL/about", name = "About"},
+    {url = "$BASE_URL/atom.xml", name = "RSS"},
+    {url = "https://github.com/carpetscheme/lightspeed", name = "Source on Github"},
+]
+
+footer_credits = true
