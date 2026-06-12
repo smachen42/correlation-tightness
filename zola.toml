@@ -2,6 +2,7 @@ base_url = "https://correlation-tightness.com"
 
 title = "Correlation Tightness"
 description = "How constrained is each correlation given the rest of the matrix?"
+author = "Sam Machen"
 
 compile_sass = true
 build_search_index = false
@@ -16,3 +17,4 @@ theme = "catppuccin-mocha"
 [extra]
 footer_credits = false
 footer_links = []
+ogimage = "og-image.png"   # 1200x630 link-preview card (overrides theme default)
