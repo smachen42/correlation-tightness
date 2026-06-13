@@ -18,6 +18,20 @@ button:disabled:hover {
   color: #2d2d2d;
 }
 
+// Generate-button spinner: shown while a large (n > 50) matrix builds, so
+// the click gets immediate feedback before the synchronous table build lands.
+.btn-spinner {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.1em;
+  animation: btn-spin 0.7s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+
 .intro {
   margin-bottom: 1.2rem;
   p:first-child { margin-top: 0; }
@@ -60,7 +74,19 @@ button:disabled:hover {
 // trap) and scroll the table horizontally inside the block rather than
 // overflowing the page. Small matrices fit and stay centered as before.
 .result-block { min-width: 0; max-width: 100%; }
-.table-scroll { overflow-x: auto; }
+// position:relative anchors the absolutely-positioned bar canvas; both the
+// table and the canvas scroll together as the container's content.
+.table-scroll { overflow-x: auto; position: relative; }
+// The feasible-range bars are drawn on one canvas overlaid on the table
+// (a single paint per tick instead of n² inline-style writes — see explore.js
+// drawBars). pointer-events:none lets clicks fall through to the cells; the
+// canvas only paints thin strips at cell bottoms, so text stays visible.
+#bar-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
 
 // Override the theme's chunkier td defaults for compact matrix display.
 // Cell font-size also drives the slider/curve axis labels — `computeSliderFontSize`
@@ -85,17 +111,8 @@ button:disabled:hover {
 #corr-table td.interactive {
   cursor: pointer;
   user-select: none;
-  // Per-cell feasible-range bar at the bottom: a mini number line where
-  // x ∈ [0%, 100%] maps to c ∈ [-1, +1]. --bar-start / --bar-end mark lo / hi.
-  background-clip: padding-box;
-  background-image: linear-gradient(to right,
-    transparent          var(--bar-start, 50%),
-    rgba(50,110,200,0.7) var(--bar-start, 50%),
-    rgba(50,110,200,0.7) var(--bar-end,   50%),
-    transparent          var(--bar-end,   50%));
-  background-position: bottom left;
-  background-size: 100% 3px;
-  background-repeat: no-repeat;
+  // The feasible-range bar at the cell bottom is painted on #bar-canvas, not
+  // here, so there is no per-cell background-image to maintain.
 }
 #corr-table td.interactive:hover { opacity: 0.7; }
 #corr-table td.selected {

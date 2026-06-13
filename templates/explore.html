@@ -23,8 +23,8 @@
     <div class="matrix-toolbar">
       <form id="gen-form" class="toolbar-group">
         <label for="n-input">n =</label>
-        <input id="n-input" type="number" min="2" max="20" value="5">
-        <button type="submit" title="Random correlation matrix drawn from a Wishart distribution with identity scale">Generate</button>
+        <input id="n-input" type="number" min="2" max="100" value="5">
+        <button id="generate-btn" type="submit" title="Random correlation matrix drawn from a Wishart distribution with identity scale">Generate</button>
       </form>
       <div class="toolbar-group">
         <button id="upload-btn" type="button">&#8593; Upload CSV</button>
@@ -41,6 +41,7 @@
       <div class="result-block">
         <div class="table-scroll">
           <table id="corr-table"></table>
+          <canvas id="bar-canvas" aria-hidden="true"></canvas>
         </div>
         <p class="caption">The bar beneath each cell marks that entry's feasible range.</p>
       </div>

@@ -5,6 +5,10 @@
   'use strict';
 
   const INDEFINITE_THRESHOLD = -1e-10;
+  // Slack on the band-membership test that drives the red indefinite tint, in c units.
+  // The exact test is λ_min ≥ INDEFINITE_THRESHOLD; band edges are where
+  // λ_min = 0 and the slope dλ_min/dc is O(1) there, so the scales match.
+  const BAND_EPS = 1e-9;
 
   // SVG geometry constants (viewBox units; SVG scales to container width).
   const NL_W = 420, NL_H = 36, NL_PAD = 44;
@@ -13,14 +17,17 @@
   // ── State ─────────────────────────────────────────────────────────────────
   let currentCorr    = null;
   let currentInfo    = null;   // info[i][j] = {lo, hi, alpha, beta, gamma} for i != j
-  let currentEigvals = null;   // sorted-descending spectrum of currentCorr; refreshed each setSelectedValue
+  let restIndefinite = false;  // true if no value of the selected entry makes the matrix PSD (the indefiniteness lives outside the selected pair); computed per selection
   let pristineCorr   = null;   // snapshot at last Generate / Upload, for Reset
   let isEdited       = false;  // true once user drags or types a value
   let selectedCell   = null;   // {i, j}
   let dragState      = null;   // {i, j, pointerId, axisLeft, axisRight}
-  let currentCurve   = null;   // {cs, eigvals} from eigvalsCurve; eigvals[k] is n-vector sorted desc
+  let currentCurve   = null;   // {cs, eigvals} λ_min sweep for the selected pair; built in chunks by buildCurve, null until complete
   let curveTransform = null;   // {toX, toY} for the λ_min curve
+  let curveJob       = 0;      // generation token; bumping it cancels in-flight chunked curve builds
   let cellRefs       = null;   // cellRefs[i][j] = td element (null for diagonal). Cached on buildCorrTable.
+  let barGeom        = null;   // [{i,j,x,y,w}] per lower-triangle cell, in canvas px; rebuilt on table build / resize
+  let barIndefinite  = false;  // last indefinite state painted, so the red tint only toggles on transition (not every tick)
   let viewMode       = 'raw';  // 'raw' = slider in c ∈ [-1,1] with feasible band; 'partial' = slider in ρ ∈ [-1,1], whole axis feasible
 
   // Coordinate helpers for the selected cell. In partial mode the slider/curve
@@ -78,7 +85,7 @@
     // ourselves to have written it but not whatever else might be in storage.
     if (!state || !Array.isArray(state.matrix)) return null;
     const m = state.matrix, n = m.length;
-    if (n < 2 || n > 20) return null;
+    if (n < 2 || n > 100) return null;
     for (const row of m) {
       if (!Array.isArray(row) || row.length !== n) return null;
       for (const v of row) if (typeof v !== 'number' || !isFinite(v)) return null;
@@ -87,22 +94,10 @@
   }
 
   // ── Compute & render ──────────────────────────────────────────────────────
-  function computeInfo(corr) {
-    const n = corr.length;
-    const info = zeros(n, n).map(row => row.map(_ => null));
-    for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) {
-        const r = feasibleRange(corr, i, j);
-        info[i][j] = info[j][i] = r;
-      }
-    }
-    return info;
-  }
 
   function renderResults(corr, opts = {}) {
     currentCorr    = corr;
-    currentInfo    = computeInfo(corr);
-    currentEigvals = eigvalsh(corr);
+    currentInfo    = feasibleRangeAll(corr);
     if (!opts.preservePristine) {
       pristineCorr = corr.map(row => row.slice());
     }
@@ -112,9 +107,13 @@
     currentCurve   = null;
     curveTransform = null;
     document.getElementById('error').textContent = '';
-    buildCorrTable();
-    refreshCellColors(currentEigvals.some(x => x < INDEFINITE_THRESHOLD));
+    // Unhide before building so the bar-canvas geometry is measured against a
+    // laid-out table (a display:none table reports zero-size cells).
     document.getElementById('results').hidden = false;
+    buildCorrTable();
+    // Fresh matrix: one full spectral validity check (one-off; QL, fast even
+    // at n=200). Per-tick validity during drags uses the band test instead.
+    refreshCellColors(eigvalsh(corr).some(x => x < INDEFINITE_THRESHOLD));
     renderEmptyPanel();
     updateActionButtons();
     saveState();
@@ -133,8 +132,11 @@
   }
 
   // Placeholder slider + curves (axes only, no data). Keeps the panel's
-  // layout stable so cell clicks don't shift the page.
+  // layout stable so cell clicks don't shift the page. Also cancels any
+  // in-flight curve build — both callers (matrix replace, deselect)
+  // invalidate the sweep being computed.
   function renderEmptyPanel() {
+    curveJob++;
     const fontSize = computeSliderFontSize();
     const info = document.getElementById('nl-info');
     info.hidden = false;
@@ -177,7 +179,7 @@
 </svg>`;
   }
 
-  // Whole-matrix red flash when the matrix becomes indefinite.
+  // Whole-matrix red tint while the matrix is indefinite.
   const RED_INDEFINITE = 'rgba(180,40,40,0.55)';
 
   function buildCorrTable() {
@@ -205,35 +207,89 @@
         cellRefs[i][j] = tableEl.querySelector(`td[data-i="${i}"][data-j="${j}"]`);
       }
     }
+    // Fresh cells carry no inline red, so reset the tracked state before the
+    // next refreshCellColors decides whether to paint it.
+    barIndefinite = false;
+    measureBarGeom();
   }
 
-  // Repaint every cell. In PSD state: off-diagonal cells set --bar-start /
-  // --bar-end CSS vars so the bottom gradient shows their feasible interval
-  // on the cell's local [-1, 1] axis. In indefinite state: every cell
-  // (diagonal included) is painted uniform red, and the bar is hidden.
-  function refreshCellColors(indefinite) {
-    if (!cellRefs || !currentCorr) return;
+  // ── Feasible-range bars on a single canvas overlay ───────────────────────
+  // The bars used to be a CSS gradient per interactive cell (n² inline-style
+  // writes per drag tick — the DOM wall at large n). They are now drawn on one
+  // canvas overlaid on the table: a single paint per tick. The canvas paints
+  // only thin strips at cell bottoms (text stays visible) and has
+  // pointer-events:none (clicks fall through to the cells).
+  const BAR_COLOR = 'rgba(50,110,200,0.75)';
+  const BAR_H = 3;  // bar thickness, css px
+
+  // Cache each lower-triangle cell's pixel rectangle (relative to the table)
+  // and size the canvas to the table. Cell geometry only changes when the
+  // table is rebuilt or the layout reflows, so this runs there — never per
+  // tick. getBoundingClientRect forces a layout, acceptable as a one-off.
+  function measureBarGeom() {
+    const canvas  = document.getElementById('bar-canvas');
+    const tableEl = document.getElementById('corr-table');
+    if (!canvas || !tableEl || !cellRefs || !currentCorr) { barGeom = null; return; }
     const n = currentCorr.length;
+    const cssW = tableEl.offsetWidth, cssH = tableEl.offsetHeight;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.style.left   = tableEl.offsetLeft + 'px';
+    canvas.style.top    = tableEl.offsetTop + 'px';
+    canvas.style.width  = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    canvas.width  = Math.max(1, Math.round(cssW * dpr));
+    canvas.height = Math.max(1, Math.round(cssH * dpr));
+    canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);  // draw in css px
+    const tRect = tableEl.getBoundingClientRect();
+    const geom = [];
     for (let i = 0; i < n; i++) {
-      for (let j = 0; j < n; j++) {
+      for (let j = 0; j < i; j++) {
         const td = cellRefs[i][j];
         if (!td) continue;
-        if (indefinite) {
-          td.style.backgroundColor = RED_INDEFINITE;
-          td.style.backgroundImage = 'none';  // hide the bar under the red flash
-          continue;
-        }
-        td.style.backgroundColor = '';
-        td.style.backgroundImage = '';  // restore CSS-defined gradient
-        if (i > j) {  // lower-triangle only — upper and diagonal don't render a bar
-          const info = currentInfo[i][j];
-          const startPct = ((info.lo + 1) / 2 * 100).toFixed(1);
-          const endPct   = ((info.hi + 1) / 2 * 100).toFixed(1);
-          td.style.setProperty('--bar-start', startPct + '%');
-          td.style.setProperty('--bar-end',   endPct + '%');
+        const r = td.getBoundingClientRect();
+        geom.push({ i, j, x: r.left - tRect.left, y: r.top - tRect.top, w: r.width, h: r.height });
+      }
+    }
+    barGeom = geom;
+    drawBars();
+  }
+
+  // Repaint all bars: one clear + one fillRect per lower-triangle cell.
+  // Hidden entirely while the matrix is indefinite (the red tint covers it).
+  function drawBars() {
+    const canvas = document.getElementById('bar-canvas');
+    if (!canvas || !barGeom || !currentInfo) return;
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+    if (barIndefinite) return;
+    ctx.fillStyle = BAR_COLOR;
+    for (const g of barGeom) {
+      const info = currentInfo[g.i] && currentInfo[g.i][g.j];
+      if (!info) continue;
+      const x0 = g.x + (info.lo + 1) / 2 * g.w;
+      const x1 = g.x + (info.hi + 1) / 2 * g.w;
+      ctx.fillRect(x0, g.y + g.h - BAR_H, Math.max(0, x1 - x0), BAR_H);
+    }
+  }
+
+  // Refresh the matrix's visual state. The feasible-range bars are redrawn on
+  // the canvas every call (cheap — one paint). The whole-matrix red tint is a
+  // *state change*, not per-tick work: cells are only repainted when crossing
+  // the PSD boundary, so a normal drag does no n²-scale DOM writes at all.
+  function refreshCellColors(indefinite) {
+    if (!cellRefs || !currentCorr) return;
+    if (indefinite !== barIndefinite) {
+      barIndefinite = indefinite;
+      const n = currentCorr.length;
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          const td = cellRefs[i][j];
+          if (td) td.style.backgroundColor = indefinite ? RED_INDEFINITE : '';
         }
       }
     }
+    drawBars();
   }
 
   function updateActionButtons() {
@@ -257,9 +313,24 @@
     if (td)     td.classList.add('selected');
     if (mirror) mirror.classList.add('selected');
     selectedCell = { i, j };
+    restIndefinite = computeRestIndefinite(i, j);
     makeCellEditor(i, j);
     showNumberLine(i, j);
     saveState();
+  }
+
+  // The per-tick indefinite check (whole-matrix red tint) uses the band
+  // test: the matrix is PSD iff the
+  // selected value lies inside its own feasible interval — which is exact
+  // only when the rest of the matrix (everything but the selected entry) is
+  // itself PSD. Check that once per selection by testing the matrix with the
+  // selected entry moved to the band center: PSD there ⟺ PSD for some value
+  // ⟺ the band is genuine. One eigvalsh per click, none per drag tick.
+  function computeRestIndefinite(i, j) {
+    const info = currentInfo[i][j];
+    const M = currentCorr.map(r => r.slice());
+    M[i][j] = M[j][i] = Math.max(-1, Math.min(1, info.beta));
+    return eigvalsh(M)[M.length - 1] < INDEFINITE_THRESHOLD;
   }
 
   function clearSelection() {
@@ -329,14 +400,48 @@
     const fontSize = computeSliderFontSize();
     renderModeToggle(i, j);
     document.getElementById('nl-svg').innerHTML = makeNumberLineSVG(value, info.lo, info.hi, fontSize);
-    // Curve samples differ per mode: raw sweeps c ∈ [-1, 1] (shows the PSD↔
-    // indefinite transition); partial sweeps c ∈ [lo, hi] (all feasible),
-    // giving a uniform ρ ∈ [-1, 1] when re-mapped.
-    currentCurve = (viewMode === 'partial')
-      ? eigvalsCurve(currentCorr, i, j, 201, info.lo, info.hi)
-      : eigvalsCurve(currentCorr, i, j);
-    drawCurve(fontSize);
+    buildCurve(i, j, fontSize);
     attachDragHandlers();
+  }
+
+  // Build the λ_min sweep for the selected pair without blocking the click.
+  // Each sample is an eigvalsh call — Θ(n³), ~1 ms at n=100, ~8 ms at n=200 —
+  // so the sweep runs in ~8 ms requestAnimationFrame chunks and draws when
+  // complete (sub-second total even at n=200); the
+  // empty-curve skeleton holds the layout meanwhile. The curveJob token
+  // cancels superseded builds (new selection, mode switch, matrix replace).
+  // Sample counts scale down with n to bound total work. Sweep range per
+  // mode: raw sweeps c ∈ [-1, 1] (shows the PSD ↔ indefinite transition);
+  // partial sweeps c ∈ [lo, hi] (all feasible), giving a uniform ρ ∈ [-1, 1]
+  // when re-mapped.
+  function buildCurve(i, j, fontSize) {
+    const job = ++curveJob;
+    const n = currentCorr.length;
+    const info = currentInfo[i][j];
+    const nSamples = n <= 30 ? 201 : n <= 60 ? 101 : 61;
+    const lo = viewMode === 'partial' ? info.lo : -1;
+    const hi = viewMode === 'partial' ? info.hi : 1;
+    const M = currentCorr.map(r => r.slice());
+    const cs = new Array(nSamples), eigvals = new Array(nSamples);
+    let k = 0;
+    currentCurve = null;
+    curveTransform = null;
+    document.getElementById('nl-curve').innerHTML = makeEmptyCurveSVG(fontSize);
+    const step = () => {
+      if (job !== curveJob) return;  // superseded
+      const t0 = performance.now();
+      do {
+        const c = lo + (hi - lo) * k / (nSamples - 1);
+        cs[k] = c;
+        M[i][j] = M[j][i] = c;
+        eigvals[k] = eigvalsh(M);
+        k++;
+      } while (k < nSamples && performance.now() - t0 < 8);
+      if (k < nSamples) { requestAnimationFrame(step); return; }
+      currentCurve = { cs, eigvals };
+      drawCurve(fontSize);
+    };
+    step();
   }
 
   // Populate the info area with the symbolic readout and show the toggle.
@@ -454,8 +559,12 @@
       pointerId: e.pointerId,
       axisLeft:  rect.left + padL * scale,
       axisRight: rect.left + (W - padR) * scale,
+      // Anchor the precision matrix at the drag-start state; each tick is then
+      // a Θ(n²) rank-2 update from here rather than a fresh Θ(n³) inverse.
+      omega0: precisionMatrix(currentCorr),
+      c0: currentCorr[i][j],
     };
-    svgEl.setPointerCapture(e.pointerId);
+    try { svgEl.setPointerCapture(e.pointerId); } catch (_) { /* capture is best-effort */ }
     svgEl.addEventListener('pointermove',   onDragMove);
     svgEl.addEventListener('pointerup',     endDrag);
     svgEl.addEventListener('pointercancel', endDrag);
@@ -480,12 +589,18 @@
     svgEl.removeEventListener('pointercancel', endDrag);
     dragState = null;
     document.body.classList.remove('dragging');
+    saveState();  // persist the final value once, not per tick
   }
 
   // Set the currently-selected cell's value to v and refresh all dependent UI.
   // Bounds for (i,j) itself are invariant under c, but bounds for other pairs
   // shift — recompute the whole map so a follow-up click sees accurate bounds.
-  // ~1 ms at n=20, comfortably under one frame.
+  // During a drag this comes from a Θ(n²) rank-2 Woodbury update of the drag-
+  // start precision matrix (valid even in the red zone); off the drag path, or
+  // at an endpoint where the update degenerates, a fresh Θ(n³) recompute.
+  // Validity needs no spectral work per tick: the matrix is PSD iff v sits in
+  // the selected pair's own band (and the rest was PSD — restIndefinite,
+  // checked once per selection).
   function setSelectedValue(v) {
     if (!selectedCell) return;
     const { i, j } = selectedCell;
@@ -496,14 +611,20 @@
     updateCellText(i, j, v);
     updateCellText(j, i, v);
     renderModeToggle(i, j);
-    currentInfo = computeInfo(currentCorr);
-    currentEigvals = eigvalsh(currentCorr);
-    refreshCellColors(currentEigvals.some(x => x < INDEFINITE_THRESHOLD));
+    const Om = (dragState && dragState.omega0 && dragState.i === i && dragState.j === j)
+      ? woodburyPrecision(dragState.omega0, i, j, v - dragState.c0)
+      : null;
+    currentInfo = Om ? feasibleRangeFromPrecision(currentCorr, Om)
+                     : feasibleRangeAll(currentCorr);
+    refreshCellColors(restIndefinite || v < info.lo - BAND_EPS || v > info.hi + BAND_EPS);
     if (!isEdited) {
       isEdited = true;
       updateActionButtons();
     }
-    saveStateThrottled();
+    // During a drag, defer persistence to endDrag — the state JSON is ~800 KB
+    // at n=200, too heavy to stringify+store every tick. Typed/programmatic
+    // edits still debounce-save here.
+    if (!dragState) saveStateThrottled();
   }
 
   function applyDragValue(v) { setSelectedValue(v); }
@@ -631,7 +752,7 @@
     if (!corr) return "Could not parse CSV as a numeric matrix";
     const n = corr.length;
     if (n < 2) return "Matrix must be at least 2×2";
-    if (n > 20) return "Matrix must be at most 20×20";
+    if (n > 100) return "Matrix must be at most 100×100";
     return null;
   }
 
@@ -641,14 +762,43 @@
     renderResults(wishartCorr(n, mulberry32(seed)));
   }
 
+  // Swap a button's label for a spinner while fn runs. The work is
+  // synchronous, so yield one frame (rAF, then a task) before starting it —
+  // otherwise the browser never paints the spinner. The CSS animation
+  // freezes while the work holds the main thread; the immediate state
+  // change is the feedback that matters. Width is pinned so the button
+  // doesn't shrink around the spinner.
+  function runWithSpinner(btn, fn) {
+    const label = btn.innerHTML;
+    btn.style.width = btn.offsetWidth + 'px';
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    btn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span>';
+    requestAnimationFrame(() => setTimeout(() => {
+      try { fn(); } finally {
+        btn.innerHTML = label;
+        btn.style.width = '';
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+      }
+    }, 0));
+  }
+
   document.getElementById('gen-form').addEventListener('submit', e => {
     e.preventDefault();
     const n = parseInt(document.getElementById('n-input').value, 10);
-    if (!Number.isInteger(n) || n < 2 || n > 20) {
-      showError("n must be an integer between 2 and 20");
+    if (!Number.isInteger(n) || n < 2 || n > 100) {
+      showError("n must be an integer between 2 and 100");
       return;
     }
-    generateRandom(n);
+    // Below n ≈ 50 generation is fast enough that a spinner reads as a
+    // glitchy flash; above it the table build is long enough to want
+    // feedback.
+    if (n > 50) {
+      runWithSpinner(document.getElementById('generate-btn'), () => generateRandom(n));
+    } else {
+      generateRandom(n);
+    }
   });
 
   document.getElementById('upload-btn').addEventListener('click', () => {
@@ -706,6 +856,14 @@
   // before navigating to /theory still persists.
   window.addEventListener('pagehide', () => {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; saveState(); }
+  });
+
+  // Cell pixel geometry can shift on browser zoom / DPR change / reflow;
+  // re-measure the bar canvas (debounced) so the overlay stays aligned.
+  let resizeRAF = 0;
+  window.addEventListener('resize', () => {
+    if (resizeRAF) return;
+    resizeRAF = requestAnimationFrame(() => { resizeRAF = 0; if (currentCorr) measureBarGeom(); });
   });
 
   document.getElementById('mode-toggle').addEventListener('click', e => {
