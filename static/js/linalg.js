@@ -477,15 +477,24 @@ function feasibleRangeAll(corr) {
 // without an eigendecomposition. Anchoring at Ω₀ each tick (with the running
 // total δ) keeps errors from accumulating. The determinant lemma gives
 // det C(δ) = −δ²·det C₀·det K, so K is singular exactly at the dragged pair's
-// interval endpoints — there (and for δ ≈ 0, where the column structure is
-// rank-deficient) this returns null and the caller does a full recompute.
+// interval endpoints — and the *partial-correlation slider's ±1 ends land
+// there exactly*. There C(δ) is singular, Ω(δ) blows up, and the per-pair
+// identities lose all precision (other pairs' bounds go haywire); det K loses
+// it gradually, so the guard is relative — |det K| small versus the scale of
+// its terms — returning null so the caller falls back to the eigendecomposition
+// route in feasibleRangeAll, which stays accurate at the boundary. Likewise
+// for δ ≈ 0, where the column structure is rank-deficient.
 function woodburyPrecision(Om0, i, j, delta) {
   const n = Om0.length;
   if (!(Math.abs(delta) > 1e-12)) return null;  // δ ≈ 0: no-op; let caller reuse Ω₀
   const oii = Om0[i][i], ojj = Om0[j][j], oij = Om0[i][j];
   const kij = oij + 1 / delta;
   const detK = oii * ojj - kij * kij;
-  if (!isFinite(detK) || Math.abs(detK) < 1e-300) return null;  // at/over an endpoint
+  // Relative conditioning guard. Empirically the bounds stay accurate to
+  // ~1e-11 while |det K|/scale ≳ 1e-4 and only break when it collapses toward
+  // machine zero at the boundary; 1e-9 sits safely in that gap.
+  const scale = Math.abs(oii * ojj) + kij * kij;
+  if (!isFinite(detK) || Math.abs(detK) < 1e-9 * scale) return null;  // at/near an endpoint
   // K⁻¹ entries.
   const k11 = ojj / detK, k12 = -kij / detK, k22 = oii / detK;
   // Columns i, j of Ω₀.
