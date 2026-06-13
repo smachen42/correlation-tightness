@@ -387,10 +387,14 @@ function feasibleRange(corr, i, j) {
 // pseudoinverse values (range(B) ⊆ range(A) in any PSD Schur partition), so
 // the ridge computes the boundary answer in Θ(n³); μ = 1e-12·λ_max is the
 // measured optimum of the truncation-vs-roundoff tradeoff (~3e-6 error, two
-// decades below the 3-decimal display). Always returns an n×n matrix.
+// decades below the 3-decimal display). Returns { Om, exact }: `exact` is true
+// only when Ω is a genuine inverse (Cholesky, or eigh with no ridged
+// eigenvalues) — i.e. C is invertible. A ridged result (`exact: false`) is the
+// pseudoinverse-limit answer for a singular C; it is fine to read bounds off,
+// but it is NOT a valid anchor for a Woodbury update (see woodburyPrecision).
 function precisionMatrix(corr) {
   const n = corr.length;
-  if (n === 0) return [];
+  if (n === 0) return { Om: [], exact: true };
   const L = cholesky(corr);
   if (L) {
     // Cholesky can "succeed" on a numerically singular matrix with a garbage
@@ -405,15 +409,19 @@ function precisionMatrix(corr) {
     if (pmin * pmin > n * 1e-12 * pmax * pmax) {
       const I = zeros(n, n);
       for (let i = 0; i < n; i++) I[i][i] = 1;
-      return cholSolve(L, I);
+      return { Om: cholSolve(L, I), exact: true };
     }
   }
   const { values, vectors } = eigh(corr);
   const amax = Math.max(1e-300, ...values.map(Math.abs));
   const cut = 1.5e-8 * amax;
   const mu = 1e-12 * amax;
-  const inv = values.map(v =>
-    Math.abs(v) >= cut ? 1 / v : 1 / (v >= 0 ? v + mu : v - mu));
+  let ridged = false;
+  const inv = values.map(v => {
+    if (Math.abs(v) >= cut) return 1 / v;
+    ridged = true;
+    return 1 / (v >= 0 ? v + mu : v - mu);
+  });
   const Om = zeros(n, n);
   for (let a = 0; a < n; a++) {
     for (let b = a; b < n; b++) {
@@ -422,7 +430,7 @@ function precisionMatrix(corr) {
       Om[a][b] = Om[b][a] = s;
     }
   }
-  return Om;
+  return { Om, exact: !ridged };
 }
 
 // ── Feasible ranges for all pairs from a precision matrix ─────────────────
@@ -431,10 +439,17 @@ function precisionMatrix(corr) {
 //   1 − α = Ω_jj / d,   1 − γ = Ω_ii / d,   c = ρ_ij + Ω_ij / d,
 // and half-width √(max(Ω_ii Ω_jj, 0)) / |d| — the clamp mirrors the
 // disc-clamp in feasibleRange, collapsing the band when it is empty. Derivation
-// on the theory page under "The precision matrix". Θ(n²) given Ω. A non-finite
-// or zero d (catastrophic cancellation at an exact singularity) falls the
-// affected pair back to the per-pair feasibleRange. Returns info with
-// info[i][j] = info[j][i] = {lo, hi, alpha, beta, gamma}, null diagonal.
+// on the theory page under "The precision matrix". Θ(n²) given Ω.
+//
+// Reliability guard: when C is singular with exactly one null direction (a
+// rank n−1 PSD matrix — very common: a single linear dependency), the ridged Ω
+// has entries of order 1/μ, and d = Ω_ii Ω_jj − Ω_ij² is a difference of two
+// ~1/μ² quantities that cancel analytically but not numerically. Detect the
+// lost precision (|d| ≪ Ω_ii Ω_jj) and fall that pair back to the per-pair
+// feasibleRange, which uses the submatrix pseudoinverse directly and is exact
+// for any PSD C. (With ≥2 null directions the 1/μ² term is a genuine positive
+// Gram determinant — no cancellation — so the ridge is already exact there.)
+// Returns info with info[i][j] = info[j][i] = {lo, hi, alpha, beta, gamma}.
 function feasibleRangeFromPrecision(corr, Om) {
   const n = corr.length;
   const info = new Array(n);
@@ -442,11 +457,12 @@ function feasibleRangeFromPrecision(corr, Om) {
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
       const oii = Om[i][i], ojj = Om[j][j], oij = Om[i][j];
-      const d = oii * ojj - oij * oij;
+      const prod = oii * ojj;
+      const d = prod - oij * oij;
       let r = null;
-      if (isFinite(d) && d !== 0) {
+      // Reject non-finite/zero d, and d that lost ≳9 digits to cancellation.
+      if (isFinite(d) && d !== 0 && Math.abs(d) > 1e-9 * Math.max(Math.abs(prod), oij * oij)) {
         const beta = corr[i][j] + oij / d;
-        const prod = oii * ojj;
         const width = prod > 0 ? Math.sqrt(prod) / Math.abs(d) : 0;
         r = { lo: beta - width, hi: beta + width,
               alpha: 1 - ojj / d, beta, gamma: 1 - oii / d };
@@ -462,14 +478,17 @@ function feasibleRangeFromPrecision(corr, Om) {
 // Θ(n⁵) for calling feasibleRange on each pair. Used on full-matrix events
 // (generate / upload / typed value); drags use the Woodbury path below.
 function feasibleRangeAll(corr) {
-  return feasibleRangeFromPrecision(corr, precisionMatrix(corr));
+  return feasibleRangeFromPrecision(corr, precisionMatrix(corr).Om);
 }
 
 // ── Rank-2 precision update for a single moved entry (Woodbury) ───────────
 // During a drag only entry (i, j) changes: C(δ) = C₀ + δ(eᵢeⱼᵀ + eⱼeᵢᵀ),
-// where C₀ is the drag-start matrix with precision Ω₀. The Sherman-Morrison-
-// Woodbury identity gives Ω(δ) = C(δ)⁻¹ directly from Ω₀ in Θ(n²), with no
-// refactorization:
+// where C₀ is the drag-start matrix with precision Ω₀. REQUIRES Ω₀ to be the
+// exact inverse of C₀ (an invertible C₀) — anchoring at a ridged pseudo-inverse
+// (singular C₀, e.g. a drag begun while another pair is pinned at its limit)
+// gives nonsense, so the caller must only pass `precisionMatrix(...).exact`
+// matrices. The Sherman-Morrison-Woodbury identity gives Ω(δ) = C(δ)⁻¹ directly
+// from Ω₀ in Θ(n²), with no refactorization:
 //   Ω(δ) = Ω₀ − Ω₀U K⁻¹ Uᵀ Ω₀,   U = [eᵢ eⱼ],
 //   K = M⁻¹ + Uᵀ Ω₀ U = [[Ω₀_ii, Ω₀_ij + 1/δ], [Ω₀_ij + 1/δ, Ω₀_jj]].
 // Ω₀U is just columns i, j of Ω₀. Valid on both sides of the PSD boundary

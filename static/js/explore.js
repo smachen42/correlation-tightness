@@ -560,8 +560,12 @@
       axisLeft:  rect.left + padL * scale,
       axisRight: rect.left + (W - padR) * scale,
       // Anchor the precision matrix at the drag-start state; each tick is then
-      // a Θ(n²) rank-2 update from here rather than a fresh Θ(n³) inverse.
-      omega0: precisionMatrix(currentCorr),
+      // a Θ(n²) rank-2 update from here rather than a fresh Θ(n³) inverse. Only
+      // anchor when C₀ is genuinely invertible (`exact`) — Woodbury from a
+      // ridged pseudo-inverse (a drag begun on a singular matrix, e.g. another
+      // pair pinned at ±1) is invalid, so omega0 stays null and every tick
+      // recomputes via feasibleRangeAll.
+      omega0: (() => { const pm = precisionMatrix(currentCorr); return pm.exact ? pm.Om : null; })(),
       c0: currentCorr[i][j],
     };
     try { svgEl.setPointerCapture(e.pointerId); } catch (_) { /* capture is best-effort */ }
