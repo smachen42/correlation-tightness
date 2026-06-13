@@ -5,7 +5,7 @@ template = "theory.html"
 
 An $n \times n$ correlation matrix $C$ is symmetric, has unit diagonal, and is positive semidefinite (written $C \succeq 0$), which means $x^\top C x \geq 0$ for every $x \in \mathbb{R}^n$. Practically, positive semidefiniteness ensures there are no contradictions across the variables — that some set of random variables could actually exhibit these correlations.
 
-We can learn a lot about the assumptions embedded in a correlation matrix by fixing all entries but one (the correlation between two of the variables) and asking how far that entry can move while $C$ stays a valid correlation matrix. When the rest already explain the two variables well, their correlation is pinned into a narrow range and the entry is *tight*; when the rest barely explain them, the range is wide. This range has a closed form, and is connected to *partial correlation*.
+We can learn a lot about the assumptions embedded in a correlation matrix by fixing all entries but one (the correlation between two of the variables) and asking how far that entry can move while $C$ stays a valid correlation matrix. When the rest already explain the two variables well, their correlation is pinned into a narrow range and the entry is *tight*; when the rest barely explain them, the range is wide. This range has a closed form, is connected to *partial correlation*, and — through the *precision matrix* — can be obtained for every entry at once.
 
 ### Closed-form bounds
 
@@ -51,7 +51,7 @@ gives the stated interval.
 
 </details>
 
-This interval is exactly the blue region on the main range bar shown for the selected entry in the [explorer](/explore/): its center sits at $c$ and its half-width is $\sqrt{(1 - \alpha)(1 - \gamma)}$. The constants $\alpha$, $\gamma$, and $c$ might at first look like opaque quadratic forms, but each has a clean statistical reading that we explore below.
+This interval is exactly the blue region on the main range bar shown for the selected entry in the [explorer](/explore/): its center sits at $c$ and its half-width is $\sqrt{(1 - \alpha)(1 - \gamma)}$. In the explorer the same theorem reads in reverse: the matrix turns red exactly when the dragged value leaves its band. The constants $\alpha$, $\gamma$, and $c$ might at first look like opaque quadratic forms, but each has a clean statistical reading that we explore below.
 
 ### Connection to partial correlation
 
@@ -101,3 +101,41 @@ $R^2 = \mathrm{Var}(\widehat{X_i})/\mathrm{Var}(X_i) = \alpha$, since $\mathrm{V
 </details>
 
 When $\alpha$ or $\gamma$ approaches $1$ ($X_i$ or $X_j$ is nearly a linear combination of the rest), the residual variance ($1 - \alpha$ or $1 - \gamma$) collapses to zero, and the entry $\rho_{ij}$ is pinned to its implied value $c$. This is the meaning of *tightness*.
+
+### The precision matrix
+
+Each result so far pins one pair down through its own submatrix $A$. Assuming $C \succ 0$, it turns out every pair's bounds fall out of a single global object: the *precision matrix* $\Omega = C^{-1}$. For a pair $(i, j)$, write $d = \Omega_{ii} \Omega_{jj} - \Omega_{ij}^2$ for the determinant of the $2 \times 2$ block of $\Omega$ on $\lbrace i, j \rbrace$; then
+$$
+\rho_{ij \mid \mathcal{R}} = \frac{-\Omega_{ij}}{\sqrt{\Omega_{ii} \Omega_{jj}}}, \qquad \mathcal F_{ij}(C) = \left[ \rho_{ij} + \frac{\Omega_{ij} - \sqrt{\Omega_{ii} \Omega_{jj}}}{d}, \ \rho_{ij} + \frac{\Omega_{ij} + \sqrt{\Omega_{ii} \Omega_{jj}}}{d} \right].
+$$
+<details>
+<summary>Proof</summary>
+
+Order indices as $\mathcal{P} = \lbrace i, j \rbrace$ then $\mathcal{R}$, and partition $C$ and $\Omega$ conformally:
+$$
+C = \begin{bmatrix} C_{\mathcal{P}, \mathcal{P}} & B^\top \\\\ B & A \end{bmatrix}, \qquad \Omega = \begin{bmatrix} \Omega_{\mathcal{P}, \mathcal{P}} & Y^\top \\\\ Y & Z \end{bmatrix}, \qquad B = \begin{bmatrix} r_i & r_j \end{bmatrix}.
+$$
+The first block column of $C \Omega = I$ reads
+$$
+\begin{aligned}
+C_{\mathcal{P}, \mathcal{P}} \Omega_{\mathcal{P}, \mathcal{P}} + B^\top Y &= I_2, \\\\
+B \Omega_{\mathcal{P}, \mathcal{P}} + A Y &= 0.
+\end{aligned}
+$$
+Since $A \succ 0$, the second equation gives $Y = -A^{-1} B \Omega_{\mathcal{P}, \mathcal{P}}$; substituting into the first,
+$$
+\left( C_{\mathcal{P}, \mathcal{P}} - B^\top A^{-1} B \right) \Omega_{\mathcal{P}, \mathcal{P}} = I_2,
+$$
+and the bracket is exactly $S(\rho)$ from the feasibility proof. Hence $\Omega_{\mathcal{P}, \mathcal{P}} = S(\rho)^{-1}$. Inverting the $2 \times 2$,
+$$
+S(\rho) = \frac{1}{d} \begin{bmatrix} \Omega_{jj} & -\Omega_{ij} \\\\ -\Omega_{ij} & \Omega_{ii} \end{bmatrix},
+$$
+and matching against $S(\rho) = \begin{bmatrix} 1 - \alpha & \rho - c \\\\ \rho - c & 1 - \gamma \end{bmatrix}$ gives
+$$
+1 - \alpha = \frac{\Omega_{jj}}{d}, \qquad 1 - \gamma = \frac{\Omega_{ii}}{d}, \qquad \rho_{ij} - c = -\frac{\Omega_{ij}}{d}.
+$$
+Since $\Omega \succ 0$, its $2 \times 2$ block has $d > 0$, so $(1 - \alpha)(1 - \gamma) = \Omega_{ii} \Omega_{jj} / d^2$ and $c = \rho_{ij} + \Omega_{ij}/d$. Substituting these into the partial correlation $\rho_{ij \mid \mathcal{R}} = (\rho_{ij} - c)/\sqrt{(1 - \alpha)(1 - \gamma)}$ and the feasible range $[c - \sqrt{(1 - \alpha)(1 - \gamma)}, c + \sqrt{(1 - \alpha)(1 - \gamma)}]$ gives the stated expressions.
+
+</details>
+
+The first is the classical expression for partial correlation in terms of the precision matrix. The second is the feasible range; although it is written with $\rho_{ij}$, its value does not depend on it — the band is fixed by the rest of the matrix (as the first section showed), and $\Omega$'s own $\rho_{ij}$-dependence cancels the explicit one.
