@@ -1,0 +1,95 @@
+{% extends "index.html" %}
+
+{% block title %}{{ page.title }} &middot; {{ config.title }}{% endblock title %}
+
+{% block header_aside %}
+<a class="header-link" href="{{ get_url(path='@/explore.md', trailing_slash=true) | safe }}">1-D explorer</a>
+<span class="header-sep" aria-hidden="true">&middot;</span>
+<a class="header-link" href="{{ get_url(path='@/theory.md', trailing_slash=true) | safe }}">Read the theory</a>
+{% endblock header_aside %}
+
+{% block extra_head %}
+{{ super() }}
+{# The 3-D "studio" layout needs a wider main than the landing/1-D pages (index.html caps at 56rem). #}
+<style>main#main { max-width: 59rem; }</style>
+<link rel="stylesheet" href="{{ get_url(path='explore3d.css') | safe }}">
+<script defer src="{{ get_url(path='js/linalg.js') | safe }}"></script>
+<script defer src="{{ get_url(path='three/three.min.js') | safe }}"></script>
+<script defer src="{{ get_url(path='three/OrbitControls.js') | safe }}"></script>
+<script defer src="{{ get_url(path='three/ConvexHull.js') | safe }}"></script>
+<script defer src="{{ get_url(path='three/ConvexGeometry.js') | safe }}"></script>
+<script defer src="{{ get_url(path='js/explore3d.js') | safe }}"></script>
+{% endblock extra_head %}
+
+{% block content %}
+<div id="results" hidden>
+  <div class="explorer">
+
+    <div class="controls">
+      <div class="graph-rail">
+        <span class="bar-label">Graph structure</span>
+        <div class="graph-btns">
+          <button class="graph-btn" type="button" data-graph="triangle" title="Triangle (K₃) → elliptope">
+            <svg class="graph-ico" viewBox="0 0 30 24" aria-hidden="true">
+              <g stroke="currentColor" stroke-width="1.7" fill="none"><path d="M15 4 6 19h18z"/></g>
+              <g fill="currentColor"><circle cx="15" cy="4" r="2.4"/><circle cx="6" cy="19" r="2.4"/><circle cx="24" cy="19" r="2.4"/></g>
+            </svg>
+          </button>
+          <button class="graph-btn" type="button" data-graph="star" title="Star (K₁,₃) → ball">
+            <svg class="graph-ico" viewBox="0 0 30 24" aria-hidden="true">
+              <g stroke="currentColor" stroke-width="1.7"><line x1="15" y1="13" x2="15" y2="3.5"/><line x1="15" y1="13" x2="5.5" y2="20"/><line x1="15" y1="13" x2="24.5" y2="20"/></g>
+              <g fill="currentColor"><circle cx="15" cy="13" r="2.4"/><circle cx="15" cy="3.5" r="2.4"/><circle cx="5.5" cy="20" r="2.4"/><circle cx="24.5" cy="20" r="2.4"/></g>
+            </svg>
+          </button>
+          <button class="graph-btn" type="button" data-graph="path" title="Path (P₄) → cushion">
+            <svg class="graph-ico" viewBox="0 0 30 24" aria-hidden="true">
+              <g stroke="currentColor" stroke-width="1.7" fill="none"><path d="M4 19 11 5 19 19 26 5"/></g>
+              <g fill="currentColor"><circle cx="4" cy="19" r="2.4"/><circle cx="11" cy="5" r="2.4"/><circle cx="19" cy="19" r="2.4"/><circle cx="26" cy="5" r="2.4"/></g>
+            </svg>
+          </button>
+          <button class="graph-btn" type="button" data-graph="pathedge" title="Path + edge (P₃ ∪ K₂) → cylinder">
+            <svg class="graph-ico" viewBox="0 0 30 24" aria-hidden="true">
+              <g stroke="currentColor" stroke-width="1.7"><line x1="4" y1="7" x2="26" y2="7"/><line x1="9" y1="20" x2="21" y2="20"/></g>
+              <g fill="currentColor"><circle cx="4" cy="7" r="2.4"/><circle cx="15" cy="7" r="2.4"/><circle cx="26" cy="7" r="2.4"/><circle cx="9" cy="20" r="2.4"/><circle cx="21" cy="20" r="2.4"/></g>
+            </svg>
+          </button>
+          <button class="graph-btn" type="button" data-graph="matching" title="Matching (3·K₂) → cube">
+            <svg class="graph-ico" viewBox="0 0 30 24" aria-hidden="true">
+              <g stroke="currentColor" stroke-width="1.7"><line x1="11" y1="3" x2="19" y2="3"/><line x1="5.2" y1="13" x2="9.2" y2="20"/><line x1="24.8" y1="13" x2="20.8" y2="20"/></g>
+              <g fill="currentColor"><circle cx="11" cy="3" r="2.4"/><circle cx="19" cy="3" r="2.4"/><circle cx="5.2" cy="13" r="2.4"/><circle cx="9.2" cy="20" r="2.4"/><circle cx="24.8" cy="13" r="2.4"/><circle cx="20.8" cy="20" r="2.4"/></g>
+            </svg>
+          </button>
+          <button id="reset-btn" class="reset-btn" type="button" title="Reset every entry to the 6×6 identity">&#8634;</button>
+        </div>
+      </div>
+
+      <div class="matrix-col">
+        <div class="table-scroll">
+          <table id="corr-table"></table>
+          <canvas id="bar-canvas" aria-hidden="true"></canvas>
+        </div>
+      </div>
+
+      <div class="slice-cell">
+        <div id="slice-svg"></div>
+        <div id="slice-info" class="plot-title"></div>
+        <div id="depth-row" class="slider-row">
+          <span class="slider-end">&minus;1</span>
+          <input id="depth-slider" type="range" min="-1" max="1" step="0.001" value="0" disabled>
+          <span class="slider-end">1</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="views">
+      <div class="plot-cell body-cell">
+        <div class="plot-title body-title">Feasible set &mdash; <span id="gl-axes"></span></div>
+        <canvas id="gl-canvas"></canvas>
+        <button id="spin-toggle" class="spin-toggle" type="button" title="Pause rotation" aria-label="Pause rotation">&#9208;</button>
+        <div id="gl-msg" class="gl-msg" hidden></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock content %}

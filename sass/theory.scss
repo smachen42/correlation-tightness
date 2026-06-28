@@ -68,3 +68,14 @@ details[open] {
 details .katex-display {
   margin: 0.5rem 0;
 }
+
+// Inline graph diagrams in the five-bodies table — the same icons the explorer's
+// picker uses (currentColor drives both the edges and the vertex dots), set to the
+// explorer's blue and aligned with the graph name beside them.
+.graph-ico {
+  width: 32px;
+  height: 26px;
+  color: #2f5fb0;
+  vertical-align: middle;
+  margin-right: 0.45rem;
+}

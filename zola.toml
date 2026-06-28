@@ -1,6 +1,6 @@
 base_url = "https://correlation-tightness.com"
 
-title = "Correlation Tightness"
+title = "The Shape of a Correlation Matrix"
 description = "How constrained is each correlation given the rest of the matrix?"
 author = "Sam Machen"
 

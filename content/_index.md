@@ -10,6 +10,10 @@ This raises a natural question: given a valid correlation matrix, how far can ea
     <strong>Explore &rarr;</strong>
     <span>Generate or upload a correlation matrix. Click any off-diagonal cell to see its feasible range given the other entries, then drag along the axis to vary its value and watch the other entries' ranges shift in response.</span>
   </a>
+  <a class="landing-card" href="/explore-3d/">
+    <strong>Explore 3D &rarr;</strong>
+    <span>Free three entries at once instead of one. Their jointly valid values fill a convex body you can orbit and zoom; its shape is set by how the three entries connect &mdash; the five graphs give an elliptope, ball, cushion, cylinder, or cube.</span>
+  </a>
   <a class="landing-card" href="/theory/">
     <strong>Theory &rarr;</strong>
     <span>A closed-form derivation of the feasible range, with a partial-correlation interpretation of the bounds.</span>

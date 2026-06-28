@@ -1,0 +1,124 @@
+// Styling for the single-page 3-free explorer. One flex row: a vertical graph-picker
+// rail, the 6×6 matrix (with per-cell feasible-range bars), the 3-D body, and the 2-D
+// slice — sized to fit one screen.
+
+button {
+  background: none;
+  border: 1px solid #2d2d2d;
+  color: #2d2d2d;
+  cursor: pointer;
+  padding: 0.2rem 0.8rem;
+  font: inherit;
+}
+button:hover { background: #2d2d2d; color: #fffaf7; }
+button:disabled { opacity: 0.35; cursor: not-allowed; }
+button:disabled:hover { background: none; color: #2d2d2d; }
+
+#results { margin-top: 0.2rem; }
+// Layout — "studio": one CONTROLS column on the left (graph picker · matrix · slice ·
+// type readout, all stacked at the same width) and the 3-D body as a big hero on the
+// right that fills the column's full height. Different-sized controls read as a tidy
+// list; only two things are side-by-side, so nothing looks ragged.
+.explorer { display: flex; align-items: stretch; justify-content: center; gap: 1.6rem; flex-wrap: wrap; }
+.controls { display: flex; flex-direction: column; gap: 0.8rem; flex: 0 0 auto; }   // its height sets the body height
+.views { display: flex; flex-direction: column; flex: 0 0 auto; width: 540px; max-width: 100%; }
+
+// ── Graph-structure picker: one compact icon ROW (names/shapes → tooltip + readout) ──
+.graph-rail { display: flex; flex-direction: column; gap: 0.3rem; flex: none; }
+.bar-label { font-size: 0.68rem; color: #999; text-transform: uppercase; letter-spacing: 0.09em; }
+.graph-btns { display: flex; gap: 0.3rem; }
+.graph-btn {
+  flex: 1 1 0; display: flex; align-items: center; justify-content: center; padding: 0.4rem 0.2rem;
+  border: 1px solid #cfc8c1; background: none; color: #2d2d2d;
+  cursor: pointer; transition: background 0.12s, border-color 0.12s;
+}
+.graph-ico { width: 30px; height: 24px; flex: none; color: #2f5fb0; transition: color 0.12s; }
+.graph-btn:hover { border-color: #2d2d2d; background: #f1ece6; }
+.graph-btn.active { background: #2d2d2d; border-color: #2d2d2d; }
+.graph-btn.active .graph-ico { color: #cfe0ff; }
+.graph-btn.active-muted { background: #d9e7f8; border-color: #7faae0; }   // soft "selected": this TYPE, but non-canonical cells
+.reset-btn { flex: none; font-size: 1.05rem; line-height: 1; padding: 0.3rem 0.55rem; margin-left: 0.3rem; border-color: #cfc8c1; color: #8a8378; }
+.reset-btn:hover { background: #f1ece6; border-color: #2d2d2d; color: #2d2d2d; }
+
+// ── Matrix + per-cell feasible-range bars (canvas overlaid on the table) ──────
+.matrix-col { flex: none; }
+
+.table-scroll { overflow-x: auto; position: relative; }
+#bar-canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+#corr-table { border-collapse: collapse; table-layout: fixed; }
+#corr-table td {
+  box-sizing: border-box; width: 3.4rem;   // wide enough for the WIDEST content ("-0.950" + an x/y/z badge ≈ 51px) so a sign/badge never reflows the cell. table-layout:fixed alone doesn't pin an auto-width table, so the width must actually fit the content.
+  border: 1px solid #2d2d2d;
+  padding: 5px 3px;
+  font-size: 0.85rem;
+  text-align: center;
+  white-space: nowrap;
+}
+#corr-table td:not(.interactive) { background-color: #e6e1dc; }
+#corr-table td.interactive { cursor: pointer; user-select: none; }
+#corr-table td.interactive:hover { opacity: 0.7; }
+#corr-table td.selected { outline: 2px solid #2d2d2d; outline-offset: -2px; }
+// badge the selected cells with their plot axis (x/y/z).
+#corr-table td.selected[data-axis]::after {
+  content: attr(data-axis);
+  font-size: 0.6rem; vertical-align: super; margin-left: 1px;
+}
+
+// Type-to-edit: double-clicking a cell drops a transparent input in it (mirrors the
+// 1-D explorer). Styled to read as the cell's own text — no border or background.
+.cell-input {
+  display: block; width: 100%; margin: 0; padding: 0; border: 0;
+  background: transparent; color: inherit; font: inherit; text-align: center; outline: none;
+  &::-webkit-outer-spin-button, &::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+}
+// Drop the x/y/z axis badge while a cell is being edited, so the row height doesn't shift.
+#corr-table td:has(.cell-input)::after { display: none; }
+
+// ── Body (Three.js) + 2-D slice views ────────────────────────────────────────
+.plot-cell { max-width: 100%; }
+.body-cell { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; width: 100%; }  // hero fills the column height; relative → anchors the spin toggle
+
+// Play/Stop spin toggle, overlaid in the canvas's bottom-right corner.
+.spin-toggle {
+  position: absolute; right: 8px; bottom: 8px; z-index: 2;
+  width: 28px; height: 28px; padding: 0; line-height: 1;
+  display: flex; align-items: center; justify-content: center; font-size: 0.8rem;
+  border: 1px solid #cfc8c1; background: rgba(251, 248, 245, 0.85); color: #2d2d2d;
+}
+.spin-toggle:hover { background: #2d2d2d; color: #fffaf7; border-color: #2d2d2d; }
+.slice-cell { width: 100%; text-align: center; }   // slice now lives in the control column, centered
+.plot-title { font-size: 0.85rem; margin-bottom: 0.3rem; min-height: 1.2em; flex: none; }
+.body-title { text-align: center; }
+#slice-svg svg { display: block; width: 100%; height: auto; margin: 0 auto; }   // fill the control column (matches the matrix width) rather than capping at 300px
+#slice-info { margin: 0.3rem 0 0; }   // caption sits below the cross-section, with a little gap from its axis title
+#gl-axes .ax-x, #gl-axes .ax-y, #gl-axes .ax-z { font-weight: 600; }
+#gl-canvas {
+  flex: 1 1 auto; width: 100%; min-height: 380px; max-width: 100%;
+  display: block; border: 1px solid #2d2d2d; background: #fbf8f5;
+  touch-action: none; cursor: grab;
+}
+#gl-canvas:active { cursor: grabbing; }
+.gl-msg { font-size: 0.85rem; color: #b02828; margin-top: 0.4rem; }
+
+.slider-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; margin: 0.25rem 0 0; }
+.slider-end { color: #aaa; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+
+// Depth slider: a round dark thumb matching the 2-D slice dot (#sl-dot: r=6, #2d2d2d,
+// grab cursor) so it reads as the same kind of draggable handle. --thumb is set from JS
+// (dark when valid, red when λ_min < 0), mirroring the 2-D dot's colour.
+#depth-slider {
+  flex: 1; min-width: 7rem; -webkit-appearance: none; appearance: none;
+  height: 4px; border-radius: 2px; background: #d9d2cb; cursor: pointer;
+}
+#depth-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 13px; height: 13px;
+  border: none; border-radius: 50%; background: var(--thumb, #2d2d2d); cursor: grab;
+}
+#depth-slider::-moz-range-thumb {
+  width: 13px; height: 13px; border: none; border-radius: 50%; background: var(--thumb, #2d2d2d); cursor: grab;
+}
+#depth-slider:active::-webkit-slider-thumb { cursor: grabbing; }
+#depth-slider:active::-moz-range-thumb { cursor: grabbing; }
+#depth-slider:disabled { opacity: 0.4; }
+
+body.dragging, body.dragging * { cursor: grabbing !important; }

@@ -3,6 +3,8 @@
 {% block title %}{{ page.title }} &middot; {{ config.title }}{% endblock title %}
 
 {% block header_aside %}
+<a class="header-link" href="{{ get_url(path='@/explore-3d.md', trailing_slash=true) | safe }}">3-D explorer</a>
+<span class="header-sep" aria-hidden="true">&middot;</span>
 <a class="header-link" href="{{ get_url(path='@/theory.md', trailing_slash=true) | safe }}">Read the theory</a>
 {% endblock header_aside %}
 

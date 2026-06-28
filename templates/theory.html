@@ -4,6 +4,8 @@
 
 {% block header_aside %}
 <a class="header-link" href="{{ get_url(path='@/explore.md', trailing_slash=true) | safe }}">Try the explorer</a>
+<span class="header-sep" aria-hidden="true">&middot;</span>
+<a class="header-link" href="{{ get_url(path='@/explore-3d.md', trailing_slash=true) | safe }}">3-D explorer</a>
 {% endblock header_aside %}
 
 {% block extra_head %}

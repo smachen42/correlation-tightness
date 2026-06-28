@@ -5,6 +5,9 @@
 CLAUDE.md
 .claude/
 
+# Local planning / design notes — keep out of the public repo
+/docs
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db

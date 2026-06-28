@@ -30,6 +30,10 @@
     white-space: nowrap;
   }
   .header-link:hover { color: #2d2d2d; border-bottom-color: #2d2d2d; }
+  /* Group the header links together (right side of the row) with a middot between them,
+     instead of letting space-between scatter them across the middle. */
+  .header-links { display: flex; align-items: baseline; gap: 0.55rem; flex-wrap: wrap; }
+  .header-sep { color: #bbb; user-select: none; }
   details {
     margin: 1.2rem 0;
     padding: 0.4rem 0.9rem;
@@ -82,7 +86,7 @@
       <a href="{{ config.base_url | safe }}" title="Home">{{ config.title }}</a>
       <br /><small>{{ config.description }}</small>
     </h3>
-    {% block header_aside %}{% endblock header_aside %}
+    <nav class="header-links">{% block header_aside %}{% endblock header_aside %}</nav>
   </div>
 </header>
 <hr />
